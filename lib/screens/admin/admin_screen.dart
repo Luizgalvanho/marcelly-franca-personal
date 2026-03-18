@@ -331,7 +331,8 @@ class _AdminHome extends StatelessWidget {
       children: [
         _adminAction(context, '👤', 'Novo Aluno',
             () => _showAddStudentDialog(context)),
-        _adminAction(context, '🏋️', 'Novo Treino', () {}),
+        _adminAction(context, '🏋️', 'Novo Treino',
+            () => _showAddWorkoutDialog(context)),
         _adminAction(context, '📚', 'Exercícios',
             () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ExercisesScreen()))),
@@ -399,6 +400,19 @@ class _AdminHome extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _AddStudentForm(),
+    );
+  }
+
+  void _showAddWorkoutDialog(BuildContext context) {
+    final appState = context.read<AppState>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddWorkoutForm(students: appState.students),
     );
   }
 }
@@ -738,12 +752,25 @@ class _AdminWorkoutsTab extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
-        backgroundColor: AppColors.primary,
-        label: const Text('Novo Treino',
-            style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700)),
-        icon: const Icon(Icons.add),
+      floatingActionButton: Builder(
+        builder: (ctx) => FloatingActionButton.extended(
+          onPressed: () {
+            final appState = ctx.read<AppState>();
+            showModalBottomSheet(
+              context: ctx,
+              backgroundColor: AppColors.surface,
+              isScrollControlled: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (_) => _AddWorkoutForm(students: appState.students),
+            );
+          },
+          backgroundColor: AppColors.primary,
+          label: const Text('Novo Treino',
+              style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700)),
+          icon: const Icon(Icons.add),
+        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -1445,4 +1472,540 @@ class _AddStudentFormState extends State<_AddStudentForm> {
       ],
     );
   }
+}
+
+// ==================== FORMULÁRIO NOVO TREINO ====================
+class _AddWorkoutForm extends StatefulWidget {
+  final List<UserModel> students;
+  const _AddWorkoutForm({required this.students});
+
+  @override
+  State<_AddWorkoutForm> createState() => _AddWorkoutFormState();
+}
+
+class _AddWorkoutFormState extends State<_AddWorkoutForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+
+  String _selectedDay = 'Segunda';
+  String? _selectedStudentId;
+  final List<String> _selectedMuscles = [];
+  bool _isLoading = false;
+
+  final List<String> _days = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  final List<String> _muscleGroups = [
+    'Glúteos', 'Quadríceps', 'Posterior de Coxa', 'Panturrilha',
+    'Peito', 'Costas', 'Ombros', 'Bíceps', 'Tríceps', 'Abdômen', 'Lombar',
+  ];
+
+  // Exercícios adicionados ao treino
+  final List<Map<String, dynamic>> _exercises = [];
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  void _addExercise() {
+    setState(() {
+      _exercises.add({
+        'name': '',
+        'sets': '3',
+        'reps': '12',
+        'rest': '60',
+        'nameCtrl': TextEditingController(),
+        'setsCtrl': TextEditingController(text: '3'),
+        'repsCtrl': TextEditingController(text: '12'),
+        'restCtrl': TextEditingController(text: '60'),
+        'noteCtrl': TextEditingController(),
+      });
+    });
+  }
+
+  void _removeExercise(int index) {
+    setState(() {
+      (_exercises[index]['nameCtrl'] as TextEditingController).dispose();
+      (_exercises[index]['setsCtrl'] as TextEditingController).dispose();
+      (_exercises[index]['repsCtrl'] as TextEditingController).dispose();
+      (_exercises[index]['restCtrl'] as TextEditingController).dispose();
+      (_exercises[index]['noteCtrl'] as TextEditingController).dispose();
+      _exercises.removeAt(index);
+    });
+  }
+
+  void _salvar() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedStudentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Selecione uma aluna para o treino!'),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (_exercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Adicione pelo menos 1 exercício!'),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final exerciseList = _exercises.asMap().entries.map((e) {
+      final ex = e.value;
+      final name = (ex['nameCtrl'] as TextEditingController).text.trim();
+      return WorkoutExercise(
+        exerciseId: 'ex_custom_${DateTime.now().millisecondsSinceEpoch}_${e.key}',
+        exerciseName: name.isEmpty ? 'Exercício ${e.key + 1}' : name,
+        muscleGroup: _selectedMuscles.isNotEmpty ? _selectedMuscles.first : 'Geral',
+        sets: int.tryParse((ex['setsCtrl'] as TextEditingController).text) ?? 3,
+        reps: int.tryParse((ex['repsCtrl'] as TextEditingController).text) ?? 12,
+        restSeconds: int.tryParse((ex['restCtrl'] as TextEditingController).text) ?? 60,
+        trainerNote: (ex['noteCtrl'] as TextEditingController).text.trim().isEmpty
+            ? null
+            : (ex['noteCtrl'] as TextEditingController).text.trim(),
+      );
+    }).toList();
+
+    final workout = WorkoutModel(
+      id: 'wk_custom_${DateTime.now().millisecondsSinceEpoch}',
+      studentId: _selectedStudentId!,
+      name: _nameCtrl.text.trim(),
+      dayOfWeek: _selectedDay,
+      muscleGroups: _selectedMuscles.isEmpty ? ['Geral'] : List.from(_selectedMuscles),
+      exercises: exerciseList,
+      trainerNotes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+    );
+
+    if (mounted) {
+      context.read<AppState>().addWorkout(workout);
+      Navigator.pop(context);
+      final studentName = widget.students
+          .firstWhere((s) => s.id == _selectedStudentId, orElse: () => widget.students.first)
+          .name;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.fitness_center, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '✅ Treino "${workout.name}" criado para $studentName!',
+                style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ));
+    }
+  }
+
+  InputDecoration _input(String label, {IconData? icon}) => InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: AppColors.grey500, fontFamily: 'Poppins', fontSize: 13),
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary, size: 18) : null,
+        filled: true,
+        fillColor: AppColors.cardBg,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.grey800)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.94,
+        maxChildSize: 0.97,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, ctrl) => Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: AppColors.grey700, borderRadius: BorderRadius.circular(2)),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('🏋️ Criar Treino',
+                        style: TextStyle(color: AppColors.white, fontSize: 20,
+                            fontWeight: FontWeight.w800, fontFamily: 'Poppins')),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: AppColors.grey800, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.close, color: AppColors.grey500, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: AppColors.grey800, height: 1),
+
+              // Campos
+              Expanded(
+                child: ListView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  children: [
+                    // Aluna
+                    _sectionLabel('Para qual aluna?'),
+                    const SizedBox(height: 10),
+                    widget.students.isEmpty
+                        ? Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning_rounded, color: AppColors.error, size: 18),
+                                SizedBox(width: 10),
+                                Text('Nenhuma aluna cadastrada ainda.\nCadastre uma aluna primeiro!',
+                                    style: TextStyle(color: AppColors.grey300, fontSize: 13, fontFamily: 'Poppins')),
+                              ],
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.grey800),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _selectedStudentId,
+                                isExpanded: true,
+                                hint: const Text('Selecionar aluna...',
+                                    style: TextStyle(color: AppColors.grey500, fontFamily: 'Poppins', fontSize: 14)),
+                                dropdownColor: AppColors.surface,
+                                style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 14),
+                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+                                items: widget.students.map((s) => DropdownMenuItem(
+                                  value: s.id,
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                                        child: Text(s.name[0],
+                                            style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(s.name),
+                                    ],
+                                  ),
+                                )).toList(),
+                                onChanged: (v) => setState(() => _selectedStudentId = v),
+                              ),
+                            ),
+                          ),
+                    const SizedBox(height: 20),
+
+                    // Nome do treino
+                    _sectionLabel('Nome do Treino'),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _nameCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _input('Ex: Treino A - Glúteos e Pernas', icon: Icons.fitness_center_outlined),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o nome do treino' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Dia da semana
+                    _sectionLabel('Dia da Semana'),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _days.map((d) {
+                        final isSelected = _selectedDay == d;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedDay = d),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              gradient: isSelected ? AppColors.primaryGradient : null,
+                              color: isSelected ? null : AppColors.cardBg,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: isSelected ? Colors.transparent : AppColors.grey700),
+                            ),
+                            child: Text(d,
+                                style: TextStyle(
+                                    color: isSelected ? Colors.white : AppColors.grey300,
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                                    fontFamily: 'Poppins')),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Grupos musculares
+                    _sectionLabel('Grupos Musculares'),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _muscleGroups.map((m) {
+                        final isSelected = _selectedMuscles.contains(m);
+                        return GestureDetector(
+                          onTap: () => setState(() {
+                            if (isSelected) _selectedMuscles.remove(m);
+                            else _selectedMuscles.add(m);
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary.withValues(alpha: 0.2)
+                                  : AppColors.cardBg,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: isSelected ? AppColors.primary : AppColors.grey700),
+                            ),
+                            child: Text(m,
+                                style: TextStyle(
+                                    color: isSelected ? AppColors.primary : AppColors.grey300,
+                                    fontSize: 12,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                    fontFamily: 'Poppins')),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Exercícios
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _sectionLabel('Exercícios (${_exercises.length})'),
+                        GestureDetector(
+                          onTap: _addExercise,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: AppColors.primaryGradient,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add, color: Colors.white, size: 16),
+                                SizedBox(width: 4),
+                                Text('Adicionar', style: TextStyle(color: Colors.white, fontSize: 12,
+                                    fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    if (_exercises.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.grey800, style: BorderStyle.solid),
+                        ),
+                        child: const Column(
+                          children: [
+                            Text('🏋️', style: TextStyle(fontSize: 36)),
+                            SizedBox(height: 8),
+                            Text('Nenhum exercício ainda',
+                                style: TextStyle(color: AppColors.grey500, fontSize: 13, fontFamily: 'Poppins')),
+                            Text('Toque em "+ Adicionar" para incluir',
+                                style: TextStyle(color: AppColors.grey700, fontSize: 11, fontFamily: 'Poppins')),
+                          ],
+                        ),
+                      )
+                    else
+                      ..._exercises.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final ex = entry.value;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.grey800),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 28, height: 28,
+                                    decoration: BoxDecoration(
+                                        gradient: AppColors.primaryGradient, shape: BoxShape.circle),
+                                    child: Center(child: Text('${i + 1}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 12,
+                                            fontWeight: FontWeight.w700))),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text('Exercício',
+                                      style: TextStyle(color: AppColors.grey300, fontSize: 13,
+                                          fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
+                                  const Spacer(),
+                                  GestureDetector(
+                                    onTap: () => _removeExercise(i),
+                                    child: const Icon(Icons.delete_outline_rounded,
+                                        color: AppColors.error, size: 20),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: ex['nameCtrl'] as TextEditingController,
+                                style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                                textCapitalization: TextCapitalization.words,
+                                decoration: _input('Nome do exercício *', icon: Icons.sports_gymnastics),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(child: TextField(
+                                    controller: ex['setsCtrl'] as TextEditingController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                                    decoration: _input('Séries'),
+                                  )),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: TextField(
+                                    controller: ex['repsCtrl'] as TextEditingController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                                    decoration: _input('Reps'),
+                                  )),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: TextField(
+                                    controller: ex['restCtrl'] as TextEditingController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                                    decoration: _input('Descanso(s)'),
+                                  )),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: ex['noteCtrl'] as TextEditingController,
+                                style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 12),
+                                decoration: _input('Observação para a aluna (opcional)', icon: Icons.chat_bubble_outline),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+
+                    const SizedBox(height: 16),
+
+                    // Observações gerais
+                    _sectionLabel('Observações do Treino (opcional)'),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _notesCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                      maxLines: 2,
+                      decoration: _input('Mensagem motivacional ou instruções gerais...', icon: Icons.edit_note_rounded),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Botão salvar
+                    GestureDetector(
+                      onTap: _isLoading ? null : _salvar,
+                      child: Container(
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6)),
+                          ],
+                        ),
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(width: 22, height: 22,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.fitness_center, color: Colors.white, size: 20),
+                                    SizedBox(width: 10),
+                                    Text('Criar Treino', style: TextStyle(color: Colors.white, fontSize: 16,
+                                        fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        height: 46,
+                        decoration: BoxDecoration(color: AppColors.grey800, borderRadius: BorderRadius.circular(14)),
+                        child: const Center(child: Text('Cancelar',
+                            style: TextStyle(color: AppColors.grey500, fontSize: 14,
+                                fontWeight: FontWeight.w600, fontFamily: 'Poppins'))),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String title) => Row(
+    children: [
+      Container(width: 3, height: 14,
+          decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(2))),
+      const SizedBox(width: 8),
+      Text(title, style: const TextStyle(color: AppColors.grey300, fontSize: 13,
+          fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
+    ],
+  );
 }

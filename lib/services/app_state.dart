@@ -1036,6 +1036,17 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // ==================== WORKOUT MANAGEMENT ====================
+  void addWorkout(WorkoutModel workout) {
+    _workouts.add(workout);
+    notifyListeners();
+  }
+
+  void deleteWorkout(String workoutId) {
+    _workouts.removeWhere((w) => w.id == workoutId);
+    notifyListeners();
+  }
+
   // ==================== STUDENT MANAGEMENT ====================
   void addStudent(UserModel student) {
     _students.add(student);
