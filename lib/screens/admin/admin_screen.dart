@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../models/models.dart';
 import '../../theme/app_theme.dart';
 import '../../services/app_state.dart';
 import '../../widgets/common_widgets.dart';
@@ -397,83 +398,7 @@ class _AdminHome extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.grey700,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Cadastrar Aluno',
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Poppins',
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              style: const TextStyle(
-                  color: AppColors.white, fontFamily: 'Poppins'),
-              decoration: InputDecoration(
-                labelText: 'Nome completo',
-                filled: true,
-                fillColor: AppColors.cardBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              style: const TextStyle(
-                  color: AppColors.white, fontFamily: 'Poppins'),
-              decoration: InputDecoration(
-                labelText: 'E-mail',
-                filled: true,
-                fillColor: AppColors.cardBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            PinkButton(
-              text: 'Cadastrar Aluno',
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✅ Aluno cadastrado com sucesso!'),
-                    backgroundColor: AppColors.success,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+      builder: (_) => _AddStudentForm(),
     );
   }
 }
@@ -506,16 +431,26 @@ class _StudentsTab extends StatelessWidget {
                       fontFamily: 'Poppins',
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
+                  Builder(
+                    builder: (ctx) => GestureDetector(
+                      onTap: () => showModalBottomSheet(
+                        context: ctx,
+                        backgroundColor: AppColors.surface,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        builder: (_) => _AddStudentForm(),
                       ),
-                      child: const Icon(Icons.person_add_rounded,
-                          color: Colors.white, size: 20),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.person_add_rounded,
+                            color: Colors.white, size: 20),
+                      ),
                     ),
                   ),
                 ],
@@ -1045,6 +980,469 @@ class _AdminSettingsTab extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ==================== FORMULÁRIO CADASTRO DE ALUNO ====================
+class _AddStudentForm extends StatefulWidget {
+  const _AddStudentForm();
+
+  @override
+  State<_AddStudentForm> createState() => _AddStudentFormState();
+}
+
+class _AddStudentFormState extends State<_AddStudentForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _ageCtrl = TextEditingController();
+  final _weightCtrl = TextEditingController();
+  final _heightCtrl = TextEditingController();
+  final _goalWeightCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+
+  String _selectedObjective = 'Emagrecimento';
+  String _selectedPlan = 'Mensal';
+  bool _isLoading = false;
+
+  final List<String> _objectives = [
+    'Emagrecimento',
+    'Hipertrofia',
+    'Condicionamento',
+    'Saúde e Bem-estar',
+    'Reabilitação',
+    'Performance',
+  ];
+
+  final List<String> _plans = [
+    'Avulso',
+    'Mensal',
+    'Trimestral',
+    'Semestral',
+    'Anual',
+    'Online',
+    'Presencial + Online',
+  ];
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _ageCtrl.dispose();
+    _weightCtrl.dispose();
+    _heightCtrl.dispose();
+    _goalWeightCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  void _salvar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final newStudent = UserModel(
+      id: 'student_${DateTime.now().millisecondsSinceEpoch}',
+      name: _nameCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      role: 'student',
+      objective: _selectedObjective,
+      contractedPlan: _selectedPlan,
+      age: int.tryParse(_ageCtrl.text) ?? 0,
+      currentWeight: double.tryParse(_weightCtrl.text.replaceAll(',', '.')) ?? 0,
+      targetWeight: double.tryParse(_goalWeightCtrl.text.replaceAll(',', '.')) ?? 0,
+      height: double.tryParse(_heightCtrl.text.replaceAll(',', '.')) ?? 0,
+      trainerNotes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      level: 'beginner',
+      totalPoints: 0,
+      currentStreak: 0,
+      createdAt: DateTime.now(),
+    );
+
+    if (mounted) {
+      context.read<AppState>().addStudent(newStudent);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                '✅ ${newStudent.name} cadastrada com sucesso!',
+                style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  InputDecoration _inputDecoration(String label, {IconData? icon}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.grey500, fontFamily: 'Poppins', fontSize: 13),
+      prefixIcon: icon != null ? Icon(icon, color: AppColors.primary, size: 20) : null,
+      filled: true,
+      fillColor: AppColors.cardBg,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.grey800, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.92,
+        maxChildSize: 0.97,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, controller) => Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.grey700,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '👤 Cadastrar Aluna',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey800,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.close, color: AppColors.grey500, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(color: AppColors.grey800, height: 1),
+
+              // Form fields
+              Expanded(
+                child: ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  children: [
+                    // Seção: Dados Pessoais
+                    _sectionTitle('Dados Pessoais'),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _nameCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _inputDecoration('Nome completo *', icon: Icons.person_outline),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _emailCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _inputDecoration('E-mail *', icon: Icons.email_outlined),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Informe o e-mail';
+                        if (!v.contains('@')) return 'E-mail inválido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _phoneCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      keyboardType: TextInputType.phone,
+                      decoration: _inputDecoration('Telefone / WhatsApp', icon: Icons.phone_outlined),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _ageCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      keyboardType: TextInputType.number,
+                      decoration: _inputDecoration('Idade', icon: Icons.cake_outlined),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Seção: Dados Físicos
+                    _sectionTitle('Dados Físicos'),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _weightCtrl,
+                            style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: _inputDecoration('Peso atual (kg)', icon: Icons.monitor_weight_outlined),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _heightCtrl,
+                            style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: _inputDecoration('Altura (m)', icon: Icons.height_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _goalWeightCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins'),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: _inputDecoration('Peso meta (kg)', icon: Icons.flag_outlined),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Seção: Objetivo e Plano
+                    _sectionTitle('Objetivo e Plano'),
+                    const SizedBox(height: 12),
+
+                    // Objetivo
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.grey800),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedObjective,
+                          isExpanded: true,
+                          dropdownColor: AppColors.surface,
+                          style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 14),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+                          items: _objectives.map((o) => DropdownMenuItem(
+                            value: o,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.track_changes_rounded, color: AppColors.primary, size: 18),
+                                const SizedBox(width: 10),
+                                Text(o),
+                              ],
+                            ),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedObjective = v!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Plano
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.grey800),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedPlan,
+                          isExpanded: true,
+                          dropdownColor: AppColors.surface,
+                          style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 14),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary),
+                          items: _plans.map((p) => DropdownMenuItem(
+                            value: p,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.card_membership_rounded, color: AppColors.primary, size: 18),
+                                const SizedBox(width: 10),
+                                Text(p),
+                              ],
+                            ),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedPlan = v!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Seção: Observações
+                    _sectionTitle('Observações (opcional)'),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _notesCtrl,
+                      style: const TextStyle(color: AppColors.white, fontFamily: 'Poppins', fontSize: 13),
+                      maxLines: 3,
+                      decoration: _inputDecoration('Restrições, lesões, informações importantes...').copyWith(
+                        contentPadding: const EdgeInsets.all(14),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Botão Salvar
+                    GestureDetector(
+                      onTap: _isLoading ? null : _salvar,
+                      child: Container(
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Cadastrar Aluna',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Botão cancelar
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.grey800,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              color: AppColors.grey500,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 16,
+          decoration: BoxDecoration(
+            gradient: AppColors.primaryGradient,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.grey300,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Poppins',
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
     );
   }
 }

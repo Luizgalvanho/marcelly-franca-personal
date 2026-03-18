@@ -1035,4 +1035,23 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // ==================== STUDENT MANAGEMENT ====================
+  void addStudent(UserModel student) {
+    _students.add(student);
+    notifyListeners();
+  }
+
+  void removeStudent(String studentId) {
+    _students.removeWhere((s) => s.id == studentId);
+    notifyListeners();
+  }
+
+  void updateStudent(UserModel updatedStudent) {
+    final index = _students.indexWhere((s) => s.id == updatedStudent.id);
+    if (index != -1) {
+      _students[index] = updatedStudent;
+      notifyListeners();
+    }
+  }
 }
